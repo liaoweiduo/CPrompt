@@ -180,9 +180,11 @@ class CPrompt(BaseLearner):
             n_K = nn.functional.normalize(K, dim=1)
             q = nn.functional.normalize(x_querry, dim=1)
             mk = torch.einsum('bd,kd->bk', q, n_K)
-            
-            m=torch.max(mk,dim=1,keepdim=True)[1]//(self._total_classes - self._known_classes)
-            # m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
+
+            if self._cur_task == 0:
+                m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["init_cls"]
+            else:
+                m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
             
             ts_prompts_1=self._network.ts_prompts_1
             P1=torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
