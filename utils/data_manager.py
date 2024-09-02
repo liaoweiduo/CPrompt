@@ -187,7 +187,7 @@ class DummyDataset(Dataset):
         self.labels = labels
         self.trsf = trsf
         self.use_path = use_path
-        print(f'DummyDataset: labels: {np.min(labels)}->{np.max(labels)}')
+        # print(f'DummyDataset: labels: {np.min(labels)}->{np.max(labels)}')
 
     def __len__(self):
         return len(self.images)

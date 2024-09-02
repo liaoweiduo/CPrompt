@@ -88,6 +88,8 @@ class CPrompt(BaseLearner):
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
                 new_targets=targets-self._known_classes
                 logits,features = self._network.aux_forward(inputs)
+                logging.info(f"logits {logits.shape}: {logits[0]}")
+                logging.info(f"targets {new_targets.shape}: {new_targets[0]}")
                 loss_aux=F.cross_entropy(logits,new_targets)
                 loss=loss_aux
                 
