@@ -88,8 +88,8 @@ class CPrompt(BaseLearner):
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
                 new_targets=targets-self._known_classes
                 logits,features = self._network.aux_forward(inputs)
-                logging.info(f"logits {logits.shape}: {logits[0]}")
-                logging.info(f"targets {new_targets.shape}: {new_targets}")
+                # logging.info(f"logits {logits.shape}: {logits[0].detach().cpu().numpy()}")
+                # logging.info(f"targets {new_targets.shape}: {new_targets}")
                 loss_aux=F.cross_entropy(logits,new_targets)
                 loss=loss_aux
                 
@@ -100,7 +100,8 @@ class CPrompt(BaseLearner):
                         bool_=torch.max(c1_logits,dim=1)[0]>torch.max(old_logit,dim=1)[0]+self.args["margin"]
                         t=torch.ones((bool_.shape)).to(self._device)
                         t[bool_==False]=self.args["tau"]
-                        t=t.unsqueeze(1).repeat(1,self.args["increment"])
+                        t=t.unsqueeze(1).repeat(1,self._total_classes - self._known_classes)
+                        # t=t.unsqueeze(1).repeat(1,self.args["increment"])
                         ground=F.softmax(old_logit/t,dim=1).detach().clone()
                         loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logit,dim=1)), dim=1).mean()
                         loss+=self.args["alpha"]*loss_ccl/self._cur_task
@@ -108,16 +109,21 @@ class CPrompt(BaseLearner):
                 gen_p=[]
                 x_querry = self._network.image_encoder(inputs, returnbeforepool=True)[:,0,:]
                 K=self._network.keys
-                
-                s=self._cur_task*self.args["increment"]
-                f=(self._cur_task+1)*self.args["increment"]
+
+                s, f = self._known_classes, self._total_classes
+                # s=self._cur_task*self.args["increment"]
+                # f=(self._cur_task+1)*self.args["increment"]
                 if self._cur_task==0:
                     K = K[s:f]
                 else:
                     K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
                 n_K = nn.functional.normalize(K, dim=1)
                 q = nn.functional.normalize(x_querry, dim=1)
-                mk = torch.einsum('bd,kd->bk', q, n_K)
+                mk = torch.einsum('bd,kd->bk', q, n_K)      # 只有10维
+
+                # logging.info(f"mk {mk.shape}: {mk[0].detach().cpu().numpy()}")
+                # logging.info(f"targets {targets.shape}: {targets}")
+
                 loss_mk=F.cross_entropy(mk,targets)
                 loss+=loss_mk
                 
@@ -168,13 +174,15 @@ class CPrompt(BaseLearner):
             
             K=self._network.keys
             
-            f=(self._cur_task+1)*self.args["increment"]
+            f=self._total_classes
+            # f=(self._cur_task+1)*self.args["increment"]
             K = K[:f]
             n_K = nn.functional.normalize(K, dim=1)
             q = nn.functional.normalize(x_querry, dim=1)
             mk = torch.einsum('bd,kd->bk', q, n_K)
             
-            m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
+            m=torch.max(mk,dim=1,keepdim=True)[1]//(self._total_classes - self._known_classes)
+            # m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
             
             ts_prompts_1=self._network.ts_prompts_1
             P1=torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
