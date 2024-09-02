@@ -89,7 +89,7 @@ class CPrompt(BaseLearner):
                 new_targets=targets-self._known_classes
                 logits,features = self._network.aux_forward(inputs)
                 logging.info(f"logits {logits.shape}: {logits[0]}")
-                logging.info(f"targets {new_targets.shape}: {new_targets[0]}")
+                logging.info(f"targets {new_targets.shape}: {new_targets}")
                 loss_aux=F.cross_entropy(logits,new_targets)
                 loss=loss_aux
                 
