@@ -18,6 +18,8 @@ from scipy import stats
 
 dataset_classes = {
     "cifar100_vit": 100,
+    "cgqa": 100,
+    "cobj": 30,
     "domainnet": 200,
     "imagenetr": 200,
     "stanfordcars":196

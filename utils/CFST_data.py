@@ -305,7 +305,10 @@ class CGQA(torch.utils.data.Dataset):
             if self.loaded:
                 self.load_data()
 
-            self.data = np.stack([np.asarray(self.transform(img_data[0])) for img_data in self.imgs])     # only x
+            try:
+                self.data = np.stack([np.asarray(self.transform(img_data[0])) for img_data in self.imgs])     # only x
+            except:
+                self.data = np.stack([img_data[0] for img_data in self.imgs])
 
         def load_data(self):
             """
