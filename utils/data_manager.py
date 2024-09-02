@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from utils.data import iCIFAR100_vit, iImageNetR, iDomainnetCIL,iStanford_cars
+from utils.data import iCIFAR100_vit, iImageNetR, iDomainnetCIL,iStanford_cars, iCGQA, iCOBJ
 
 class DataManager(object):
     def __init__(self, dataset_name, shuffle, seed, init_cls, increment, args=None):
@@ -160,6 +160,10 @@ class DataManager(object):
             order = np.random.permutation(len(order)).tolist()
         else:
             order = idata.class_order
+
+        if dataset_name == 'cgqa':      # cgqa use specific order
+            order = idata.labels_order      # maybe cobj also need to use specific order for comparison
+
         self._class_order = order
         logging.info(self._class_order)
 
@@ -191,7 +195,11 @@ class DummyDataset(Dataset):
         if self.use_path:
             image = self.trsf(pil_loader(self.images[idx]))
         else:
-            image = self.trsf(Image.fromarray(self.images[idx]))
+            image = self.trsf(Image.fromarray(self.images[idx]))  # for np images
+            # try:
+            #     image = self.trsf(self.images[idx])         # for Images
+            # except:
+            #     image = self.trsf(Image.fromarray(self.images[idx]))        # for np images
         label = self.labels[idx]
 
         return idx, image, label
@@ -205,7 +213,12 @@ def _get_idata(dataset_name, args=None):
     name = dataset_name.lower()
     if name == "cifar100_vit":
         return iCIFAR100_vit()
-    
+    elif name == "cgqa":
+        return iCGQA()
+    elif name == "cobj":
+        return iCOBJ()
+    elif name == "imagenetr":
+        return iImageNetR()
     elif name == "imagenetr":
         return iImageNetR()
     elif name == "domainnet":
