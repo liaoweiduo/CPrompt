@@ -161,8 +161,8 @@ class DataManager(object):
         else:
             order = idata.class_order
 
-        if dataset_name == 'cgqa':      # cgqa use specific order
-            order = idata.labels_order      # maybe cobj also need to use specific order for comparison
+        # if dataset_name == 'cgqa':      # cgqa use specific order
+        #     order = idata.labels_order      # maybe cobj also need to use specific order for comparison
 
         self._class_order = order
         logging.info(self._class_order)
