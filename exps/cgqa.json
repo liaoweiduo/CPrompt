@@ -2,7 +2,7 @@
     "log_name":"cgqa",
     "model_name":"CPrompt",
     "dataset": "cgqa",
-    "epochs": 2,
+    "epochs": 50,
     "shuffle":true,
     "init_cls": 10,
     "increment": 10,
