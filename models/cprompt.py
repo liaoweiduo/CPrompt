@@ -45,6 +45,11 @@ class CPrompt(BaseLearner):
     def incremental_train(self, data_manager):
         self.data_manager = data_manager
         self._cur_task += 1
+
+        model_save_dir = (self.args["root"] + '/' + self.args['log_name'] +
+                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(self._cur_task) + '/')
+        if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
+
         cur_task_nbclasses=data_manager.get_task_size(self._cur_task)
         self._total_classes = self._known_classes + cur_task_nbclasses
         self._network.update_fc(self._total_classes,cur_task_nbclasses)
@@ -60,7 +65,10 @@ class CPrompt(BaseLearner):
         self.train_loader = DataLoader(train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8, persistent_workers=True, pin_memory=True)
         self.test_loader = DataLoader(test_dataset, batch_size=self.args["batch_size"], shuffle=False, num_workers=8)
         self._train(self.train_loader,self.test_loader)
-        
+
+        # save model
+        self._save_model(model_save_dir)
+
         self._network.fix_branch_layer()
         
     def _train(self,train_loader,test_loader):

@@ -20,6 +20,7 @@ def setup_parser():
     parser.add_argument('--config', type=str, default='./exps/stanfordcars.json',
                         help='Json file of settings.')
     parser.add_argument('--topk', type=int, default=5)
+    parser.add_argument('--root', type=str, default='./output')
     return parser
 
 

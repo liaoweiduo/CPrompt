@@ -48,4 +48,33 @@ class BaseLearner(object):
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
-     
+
+    def _save_model(self, filename):
+        model_state = self._network.state_dict()
+        for key in model_state.keys():  # Always save it to cpu
+            model_state[key] = model_state[key].cpu()
+
+        logging.info('=> Saving class model to:', filename)
+        torch.save(model_state, filename + 'class.pth')
+        logging.info('=> Save Done')
+
+    def load_model(self, filename, drop_last=False):
+        state_dict = torch.load(filename + 'class.pth')
+        # complete with/without module.
+        for key in list(state_dict.keys()):
+            if 'module' in key:
+                state_dict[key[7:]] = state_dict[key]
+            else:
+                state_dict[f'module.{key}'] = state_dict[key]
+        if drop_last:
+            del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            del state_dict['last.weight']; del state_dict['last.bias']
+            # if 'module.last.weight' in state_dict:
+            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            # else:
+            #     del state_dict['last.weight']; del state_dict['last.bias']
+            # self.model.load_state_dict(state_dict, strict=False)
+        self._network.load_state_dict(state_dict, strict=False)
+        logging.info('=> Load Done')
+
+        self._network.eval()

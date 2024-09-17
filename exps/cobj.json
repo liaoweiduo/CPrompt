@@ -1,4 +1,5 @@
 {
+    "log_name":"cobj",
     "model_name":"CPrompt",
     "dataset": "cobj",
     "epochs": 50,
