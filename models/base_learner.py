@@ -54,8 +54,8 @@ class BaseLearner(object):
         for key in model_state.keys():  # Always save it to cpu
             model_state[key] = model_state[key].cpu()
 
-        logging.info('=> Saving class model to:', filename)
         torch.save(model_state, filename + 'class.pth')
+        logging.info('=> Saving class model to:' + filename)
         logging.info('=> Save Done')
 
     def load_model(self, filename, drop_last=False):
