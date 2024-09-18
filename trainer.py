@@ -27,7 +27,7 @@ def _train(args):
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     logging.basicConfig(
-        # level=logging.INFO,
+        level=logging.INFO,
         format='%(asctime)s - %(levelname)s [%(filename)s] => %(message)s',
         handlers=[file_handler, console_handler],
         force=True,
