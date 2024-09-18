@@ -5,7 +5,8 @@ devices=(0 1 2 3)
 for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
-docker run --rm --runtime=nvidia --gpus device=${device} \
+# -d (detach) --rm
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CPrompt:/workspace -v /mnt/datasets/datasets:/datasets -v ~/checkpoints:/checkpoints \
   --shm-size 8G liaoweiduo/hide:1.0 \
 python -u main.py --config=./exps/cobj.json \

@@ -9,10 +9,30 @@ from utils import factory
 from utils.data_manager import DataManager
 from utils.toolkit import count_parameters
 
+class Logger(object):
+    def __init__(self, name, mode='a'):
+        self.terminal = sys.stdout
+        self.log = open(name, mode)
+
+    def write(self, message):
+        self.terminal.write(f"{message}")
+        self.log.write(f"{message}")
+        # self.log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
+
+    def flush(self):
+        self.log.flush()
+
 def train(args):
     seed_list = copy.deepcopy(args['seed']) 
     device = copy.deepcopy(args['device'])
-    
+
+    # duplicate output stream to output file
+    if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
+    log_out = args["root"] + '/' + args['log_name'] + '/output.log'
+    sys.stdout = Logger(log_out)
+    log_err = args["root"] + '/' + args['log_name'] + '/err.log'
+    sys.stderr = Logger(log_err, 'w')
+
     for seed in seed_list:
         args['seed'] = seed
         args['device'] = device
