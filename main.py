@@ -21,6 +21,12 @@ def setup_parser():
                         help='Json file of settings.')
     parser.add_argument('--topk', type=int, default=5)
     parser.add_argument('--root', type=str, default='./output')
+    parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots.')
+    parser.add_argument('--lr', type=float, default=1e-2,
+                        help='can be overwrite when specifying lr in json')
+
+    parser.add_argument('--log_name', type=str, default='cgqa')
+    parser.add_argument('--slot_log_name', type=str, default='cgqa-slot')
     parser.add_argument('--debug', default=False, action='store_true', help='print everything.')
 
     return parser

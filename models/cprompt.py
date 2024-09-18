@@ -76,15 +76,56 @@ class CPrompt(BaseLearner):
         self._network.to(self._device)
         
         enabled = set()
+        enabled_params = []
         for name, param in self._network.named_parameters():
             if param.requires_grad:
+                if self.args['only_learn_slot'] and 'slot_attn' not in name:
+                    # only train slot_attn
+                    continue
+
                 enabled.add(name)
+                enabled_params.append(param)
         print(f"Parameters to be updated: {enabled}")
 
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, self._network.parameters()), momentum=0.9,lr=self.args["lr"],weight_decay=self.args["weight_decay"])
+        # optimizer = optim.SGD(filter(lambda p: p.requires_grad, self._network.parameters()), momentum=0.9,lr=self.args["lr"],weight_decay=self.args["weight_decay"])
+        optimizer = optim.SGD(enabled_params, momentum=0.9, lr=self.args["lr"], weight_decay=self.args["weight_decay"])
+
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer, T_max=self.args["epochs"])
-        self._classifier_train(train_loader,test_loader,optimizer,scheduler)
+        if self.args['only_learn_slot']:
+            self._learn_slot(train_loader,test_loader,optimizer,scheduler)
+        else:
+            self._classifier_train(train_loader,test_loader,optimizer,scheduler)
+
+    def _learn_slot(self,train_loader,test_loader,optimizer,scheduler):
+        prog_bar = tqdm(range(self.args["epochs"]))
+        for _, epoch in enumerate(prog_bar):
+            self._network.train()
+            losses = 0.
+            # correct, total = 0, 0
+            for i, (_, inputs, targets) in enumerate(train_loader):
+
+                inputs, targets = inputs.to(self._device), targets.to(self._device)
+                slots, attn, recon_loss = self._network.slot_forward(inputs)
+                loss = recon_loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                losses += loss.item()
+
+                # _, preds = torch.max(logits, dim=1)
+                # correct += preds.eq(new_targets.expand_as(preds)).cpu().sum()
+                # total += len(targets)
+
+            scheduler.step()
+            # train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
+
+            info = 'Task {}, Epoch {}/{} => Loss {:.3f}'.format(
+                self._cur_task, epoch + 1, self.args["epochs"], losses / len(train_loader))
+
+            prog_bar.set_description(info)
+        logging.info(info)
 
     def _classifier_train(self,train_loader,test_loader,optimizer,scheduler):
         prog_bar = tqdm(range(self.args["epochs"]))
@@ -136,13 +177,22 @@ class CPrompt(BaseLearner):
                 loss_mk=F.cross_entropy(mk,targets)
                 loss+=loss_mk
                 
-                m=torch.randint(0,self._cur_task+1,(len(mk),1))
-                ts_prompts_1=self._network.ts_prompts_1
-                P1=torch.cat([ts_prompts_1[j].weight.unsqueeze(0) for j in m],dim=0)
-                gen_p.append(P1)
-                ts_prompts_2=self._network.ts_prompts_2
-                P2=torch.cat([ts_prompts_2[j].weight.unsqueeze(0) for j in m],dim=0)
-                gen_p.append(P2)
+                m=torch.randint(0,self._cur_task+1,(len(mk),1))     # random select prompt for each sample
+
+                if 'slot' in self.args['model_name'].lower():
+                    slots, attn, _ = self._network.slot_forward(inputs)     # slots [bs, k, h]
+                    # each image with its slot forward on a single slot2prompt model based on m
+                    prompts_1 = torch.cat([self._network.ts_prompts_1[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
+                    prompts_2 = torch.cat([self._network.ts_prompts_2[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
+                    gen_p.append(prompts_1)
+                    gen_p.append(prompts_2)
+                else:
+                    ts_prompts_1=self._network.ts_prompts_1
+                    P1=torch.cat([ts_prompts_1[j].weight.unsqueeze(0) for j in m],dim=0)
+                    gen_p.append(P1)
+                    ts_prompts_2=self._network.ts_prompts_2
+                    P2=torch.cat([ts_prompts_2[j].weight.unsqueeze(0) for j in m],dim=0)
+                    gen_p.append(P2)
                 out_gen=self._network(inputs,gen_p,train=True)
                 loss_ce=F.cross_entropy(out_gen,new_targets)
                 loss+=loss_ce
@@ -199,12 +249,21 @@ class CPrompt(BaseLearner):
                 logging.info(f'DEBUG: mk {mk.shape}: {mk[0]}')
                 logging.info(f'DEBUG: m {m.shape}: {m[0]}')
 
-            ts_prompts_1=self._network.ts_prompts_1
-            P1=torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
-            gen_p.append(P1)
-            ts_prompts_2=self._network.ts_prompts_2
-            P2=torch.cat([ts_prompts_2[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
-            gen_p.append(P2)
+            if 'slot' in self.args['model_name'].lower():
+                with torch.no_grad():
+                    slots, attn, _ = self._network.slot_forward(inputs)     # slots [bs, k, h]
+                    # each image with its slot forward on a single slot2prompt model based on m
+                    prompts_1 = torch.cat([self._network.ts_prompts_1[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
+                    prompts_2 = torch.cat([self._network.ts_prompts_2[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
+                gen_p.append(prompts_1)
+                gen_p.append(prompts_2)
+            else:
+                ts_prompts_1=self._network.ts_prompts_1
+                P1=torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
+                gen_p.append(P1)
+                ts_prompts_2=self._network.ts_prompts_2
+                P2=torch.cat([ts_prompts_2[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
+                gen_p.append(P2)
             
             with torch.no_grad():
                 out_logits=self._network(inputs,gen_p,train=False)
@@ -357,7 +416,7 @@ class CPrompt(BaseLearner):
                 m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["increment"]
 
             logging.info(f'mk {mk.shape}: {mk[:5]}')
-            logging.info(f'm {m.shape}: {m[:5]}')
+            logging.info(f'm {m.shape}: {m[:5, 0]}')       # [bs, 1]
 
             ts_prompts_1 = self._network.ts_prompts_1
             P1 = torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
@@ -371,6 +430,7 @@ class CPrompt(BaseLearner):
 
             preds = torch.max(out_logits, dim=1)[1]
 
+            logging.info(f'out_logits {out_logits.shape}: {out_logits[:5]}')
             logging.info(f'preds {preds.shape}: {preds[:5]}')
 
         logging.info("################## next run ####################")

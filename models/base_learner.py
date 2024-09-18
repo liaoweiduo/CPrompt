@@ -17,23 +17,29 @@ class BaseLearner(object):
         self.args=args
 
     def eval_task(self):
-        y_pred, y_true = self._eval_cnn(self.test_loader)
-        cnn_accy = self._evaluate(y_pred, y_true)
-        if hasattr(self, '_class_means'):
-            y_pred, y_true = self._eval_nme(self.test_loader, self._class_means)
-            nme_accy = self._evaluate(y_pred, y_true)
+        if self.args['only_learn_slot']:
+            losses, y_true = self._eval_cnn(self.test_loader)
+            cnn_losses = self._evaluate(losses, y_true, loss=True)
+            return cnn_losses, None
         else:
-            nme_accy = None
+            y_pred, y_true = self._eval_cnn(self.test_loader)
+            cnn_accy = self._evaluate(y_pred, y_true)
+            if hasattr(self, '_class_means'):
+                y_pred, y_true = self._eval_nme(self.test_loader, self._class_means)
+                nme_accy = self._evaluate(y_pred, y_true)
+            else:
+                nme_accy = None
 
-        return cnn_accy, nme_accy
+            return cnn_accy, nme_accy
     
-    def _evaluate(self, y_pred, y_true):
+    def _evaluate(self, y_pred, y_true, loss=False):
         ret = {}
-        grouped = accuracy(y_pred.T[0], y_true, self._known_classes)
+        grouped = accuracy(y_pred.T[0], y_true, self._known_classes, loss=loss)
         ret['grouped'] = grouped
         ret['top1'] = grouped['total']
-        ret['top{}'.format(self.topk)] = np.around((y_pred.T == np.tile(y_true, (self.topk, 1))).sum()*100/len(y_true),
-                                                   decimals=2)
+        if not loss:
+            ret['top{}'.format(self.topk)] = np.around((y_pred.T == np.tile(y_true, (self.topk, 1))).sum()*100/len(y_true),
+                                                       decimals=2)
         return ret
 
     def _eval_cnn(self, loader):

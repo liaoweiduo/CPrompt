@@ -1,4 +1,5 @@
 import copy
+import logging
 import this
 import numpy as np
 import torch
@@ -6,7 +7,7 @@ from torch import nn
 from torch.distributions import relaxed_bernoulli
 import torch.nn.functional as F
 from .base import SimpleLinear
-from .slot_attention import SlotAttention
+from .slot_attention import SlotAttention, Slot2Prompt
 
 import torch
 import torch.nn as nn
@@ -58,9 +59,10 @@ class CPrompt_Net(nn.Module):
         self.ts_prompts_1=nn.ModuleList()
         self.ts_prompts_2=nn.ModuleList()
 
-        # slot init todo change model_name to CPrompt_slot
-        # if 'slot' not in self.args['model_name'].lower():
-
+        if 'slot' in self.args['model_name'].lower():
+            # init slot attn
+            self.slot_attn = SlotAttention(emb_d=768, n_slots=args["n_slots"], key_dim=128, n_iter=5)
+            self.slot_attn.freeze()
 
         model_kwargs = dict(patch_size=16, embed_dim=768, depth=12, num_heads=12)
         self.image_encoder =_create_vision_transformer('vit_base_patch16_224', pretrained=True, **model_kwargs)
@@ -84,16 +86,25 @@ class CPrompt_Net(nn.Module):
         cla_w=self.generate_fc(self.image_encoder.embed_dim,cur_task_nbclasses)
         self.clas_w.append(cla_w)
 
-        # prompts todo
-
+        # prompts
         # load slot params for this task
-        # self.slot_attn._load_model(filename= , freeze=True)
+        slot_file_name = (self.args["root"] + '/' + self.args['slot_log_name'] +
+                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(self._cur_task) + '/')
+        try:
+            self.slot_attn._load_model(filename=slot_file_name, freeze=True)
+        except:
+            logging.info(f'WARNING: loading slot unsuccessfully!, slot file name: {slot_file_name}'
+                         f'\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-        vitprompt_1=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
-        
-        self.ts_prompts_1.append(vitprompt_1)
-        vitprompt_2=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
-        self.ts_prompts_2.append(vitprompt_2)
+        # prompt
+        self.ts_prompts_1.append(Slot2Prompt(self.slot_attn.emb_d, key_dim=self.slot_attn.key_d,
+                                             selector_mode='gate', mode_params={'e_p_length': 50}))
+        self.ts_prompts_2.append(Slot2Prompt(self.slot_attn.emb_d, key_dim=self.slot_attn.key_d,
+                                             selector_mode='gate', mode_params={'e_p_length': 50}))
+        # vitprompt_1=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+        # self.ts_prompts_1.append(vitprompt_1)
+        # vitprompt_2=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+        # self.ts_prompts_2.append(vitprompt_2)
 
         if len(self.clas_w)>1:
             self.ts_prompts_1[-1].load_state_dict(self.ts_prompts_1[-2].state_dict())
@@ -121,10 +132,29 @@ class CPrompt_Net(nn.Module):
     
     def aux_forward(self,image):
         i=len(self.clas_w)-1
-        image_features = self.image_encoder(image, instance_tokens=self.ts_prompts_1[i].weight,second_pro=self.ts_prompts_2[i].weight, returnbeforepool=True, )
+
+        if 'slot' in self.args['model_name'].lower():
+            slots, attn, _ = self.slot_forward(image)
+            prompts_1 = self.ts_prompts_1[i](slots)       # [bs, l, d]
+            prompts_2 = self.ts_prompts_2[i](slots)       # [bs, l, d]
+            image_features = self.image_encoder(image, instance_tokens=prompts_1, second_pro=prompts_2, returnbeforepool=True, )
+        else:
+            image_features = self.image_encoder(image, instance_tokens=self.ts_prompts_1[i].weight,second_pro=self.ts_prompts_2[i].weight, returnbeforepool=True, )
         feature=image_features[:,0,:]
         logits=self.aux_cla(feature)['logits']
         return logits,feature
+
+    def slot_forward(self, image):
+        x_querry = self.image_encoder(image, returnbeforepool=True)[:, 1:, :]       # [bs, 196, 768]
+
+        if self.args['only_learn_slot']:
+            _slots, _attn, _recon_loss = self.slot_attn(x_querry)
+        else:
+            with torch.no_grad():  # this phase does not learn slot attn
+                _slots, _attn = self.slot_attn.forward_slots(x_querry)
+                _recon_loss = 0
+
+        return _slots, _attn, _recon_loss
 
     def forward(self, image,gen_p,train):
         image_features = self.image_encoder(image, instance_tokens=gen_p[0],second_pro=gen_p[1], returnbeforepool=True )

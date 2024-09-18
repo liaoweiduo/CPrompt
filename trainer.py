@@ -20,6 +20,8 @@ def train(args):
 
 def _train(args):
     if not os.path.exists('./logs'): os.makedirs('./logs')
+    if args['only_learn_slot']:
+        args['log_name'] = args['slot_log_name']
     logfilename = './logs/{}_{}_{}_{}_{}_{}'.format( args['log_name'], args['seed'], args['model_name'],
                                                      args['dataset'], args['init_cls'], args['increment'])
     file_handler = logging.FileHandler(logfilename)

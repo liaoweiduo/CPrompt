@@ -110,31 +110,28 @@ class SlotAttention(nn.Module):
 
         return slots, attn_vis
 
-    def _load_model(self, filename, drop_last=False, freeze=False):
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+            param.grad = None
+
+    def _load_model(self, filename, freeze=False):
+        logging.info(f'=> Load slot from {filename}')
         state_dict = torch.load(filename + 'class.pth')
         # complete with/without module.
         for key in list(state_dict.keys()):
-            if 'module' in key:
-                state_dict[key[7:]] = state_dict[key]
+            if 'slot_attn' in key:
+                t = state_dict.pop(key, None)
+                state_dict[key[10:]] = t      # remove slot_attn.
             else:
-                state_dict[f'module.{key}'] = state_dict[key]
-        if drop_last:
-            del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            del state_dict['last.weight']; del state_dict['last.bias']
-            # if 'module.last.weight' in state_dict:
-            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            # else:
-            #     del state_dict['last.weight']; del state_dict['last.bias']
-            # self.model.load_state_dict(state_dict, strict=False)
-        self.load_state_dict(state_dict, strict=False)
-        logging.info('=> Load Done')
+                del state_dict[key]
+        self.load_state_dict(state_dict, strict=True)
+        logging.info(f'=> Load Done with param: {list(state_dict.keys())}.')
 
         self.eval()
 
         if freeze:
-            for param in self.parameters():
-                param.requires_grad = False
-                param.grad=None
+            self.freeze()
 
 
 def init_tensor(a, b=None, c=None, d=None, ortho=False):
@@ -154,87 +151,26 @@ def init_tensor(a, b=None, c=None, d=None, ortho=False):
 
 
 class Slot2Prompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, e_layers, FPS, key_dim=128, mode_params=None):
+    def __init__(self, emb_d, key_dim=128, selector_mode='gate', mode_params=None):
         super().__init__()
         if mode_params is None:
             mode_params = dict(e_pool_size=100, e_p_length=8)
-        self.task_count = 0
         self.emb_d = emb_d
         self.key_d = key_dim
-        self.n_tasks = n_tasks
-
-        self.mode = 'prompt_tune'       # option: [prompt_tune, prefix_tune]
 
         # prompt basic param
-        if self.mode == 'prefix_tune':
-            self.e_pool_size = mode_params['e_pool_size']  # 100
-            self.e_p_length = mode_params['e_p_length']    # 8
-        elif self.mode == 'prompt_tune':
-            self.e_p_length = mode_params['e_p_length']    # 8
+        self.e_p_length = mode_params['e_p_length']    # 8
+        self.prompt_map = nn.Sequential(
+            nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
+            nn.Linear(2*self.key_d, self.e_p_length * self.emb_d))
+
+        self.selector_mode = selector_mode     # [gate, mlp, attn]
+        if self.selector_mode == 'gate':
+            self.slot_map = nn.Linear(self.key_d, 1)
+        elif self.selector_mode == 'mlp':
+            self.slot_map = nn.Linear(self.key_d, self.key_d)
         else:
             raise NotImplementedError
-
-
-        self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
-        self.FPS = FPS          # or can be True all the time?
-
-        self.selector_mode = 'attn'     # [gate, mlp, attn]
-        if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
-            self.slot_map = nn.ModuleList([
-                # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
-                nn.Linear(key_dim, 1) if self.selector_mode == 'gate'
-                else nn.Linear(key_dim, key_dim),
-            ])
-            self.prompt_map = nn.ModuleList([
-                nn.Sequential(nn.Linear(key_dim, 2*key_dim), nn.ReLU(inplace=True),
-                              nn.Linear(2*key_dim, len(self.e_layers) * self.e_p_length * self.emb_d))   # [64 -> 12*8*768]
-            ])
-
-            # for k, p in self.s2p.named_parameters():
-            #     if 'weight' in k:
-            #         nn.init.kaiming_uniform_(p, nonlinearity='linear')
-            #     if 'bias' in k:
-            #         nn.init.constant_(p, 0)
-        elif self.selector_mode == 'attn':
-            # e prompt init
-            for e in self.e_layers:
-                # for model saving/loading simplicity, we init the full paramaters here
-                # however, please note that we reinit the new components at each task
-                # in the "spirit of continual learning", as we don't know how many tasks
-                # we will encounter at the start of the task sequence
-                #
-                # in the original paper, we used ortho init at the start - this modification is more
-                # fair in the spirit of continual learning and has little affect on performance
-                e_l = self.e_p_length
-                p = init_tensor(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
-                k = init_tensor(self.e_pool_size, self.key_d)  # [100, 128]
-                # a = init_tensor(self.e_pool_size, self.key_d)
-                p = self.gram_schmidt(p)
-                k = self.gram_schmidt(k)
-                # a = self.gram_schmidt(a)
-                setattr(self, f'e_p_{e}', p)
-                setattr(self, f'e_k_{e}', k)
-                # setattr(self, f'e_a_{e}', a)
-        else:
-            raise NotImplementedError
-
-    def new_task(self):
-        if not self.FPS:
-            if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
-                self.slot_map.append(
-                    nn.Linear(self.key_d, 1) if self.selector_mode == 'gate'
-                    else nn.Linear(self.key_d, self.key_d))
-                self.prompt_map.append(
-                    nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
-                                  nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
-            else:
-                for e in self.e_layers:
-                    K = getattr(self, f'e_k_{e}')
-                    P = getattr(self, f'e_p_{e}')
-                    k = self.gram_schmidt(K)
-                    p = self.gram_schmidt(P)
-                    setattr(self, f'e_p_{e}', p)
-                    setattr(self, f'e_k_{e}', k)
 
     def forward(self, slots, s2p=None, train=False):
         # slots [bs, n20, h64]
@@ -243,53 +179,21 @@ class Slot2Prompt(nn.Module):
             s2p = self
 
         if self.selector_mode == 'gate':
-            slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
-            prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
+            slot_map = s2p.slot_map          # [self.key_d -> self.key_d] or -> 1
+            prompt_map = s2p.prompt_map      # [self.key_d -> self.e_p_length * self.emb_d]
             weights = F.sigmoid(slot_map(slots))        # -> [bs, k, 1]
             weighted_slots = torch.sum(weights * slots, dim=1)     # -> [bs, h]
-            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
-            # [bs, e, l, d]
+            prompts = prompt_map(weighted_slots).reshape(bs, self.e_p_length, self.emb_d)
+            # [bs, l, d]
         elif self.selector_mode == 'mlp':       # use dense
-            slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
-            prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
+            slot_map = s2p.slot_map          # [self.key_d -> self.key_d] or -> 1
+            prompt_map = s2p.prompt_map      # [self.key_d -> self.e_p_length * self.emb_d]
             weighted_slots = slot_map(slots)
             weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
-            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
-            # [bs, e, l, d]
+            prompts = prompt_map(weighted_slots).reshape(bs, self.e_p_length, self.emb_d)
+            # [bs, l, d]
         else:
-            prompts = []
-            for l in self.e_layers:
-                K = getattr(s2p, f'e_k_{l}')  # [100, h]
-                p = getattr(s2p, f'e_p_{l}')  # [100, 8, 768]
-                if s2p.FPS:  # use all prompts
-                    s = 0
-                    f = self.e_pool_size
-                else:
-                    pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-                    s = int(self.task_count * pt)  # 10 prompts for one task
-                    f = int((self.task_count + 1) * pt)
-
-                # freeze/control past tasks
-                if train:
-                    if self.task_count > 0:
-                        K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
-                        p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
-                    else:
-                        K = K[s:f]
-                        p = p[s:f]
-                else:
-                    K = K[0:f]
-                    p = p[0:f]
-
-                # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
-                # with attention and cosine sim
-                n_K = nn.functional.normalize(K, dim=1)
-                q = nn.functional.normalize(slots, dim=2)
-                aq_k = torch.einsum('bnh,kh->bnk', q, n_K)  # aq_k is cosine similarity [bs, n10, k30]
-                # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
-                P = torch.einsum('bnk,kld->bld', aq_k, p)   # wei-sum over k -> bnld -> sum over n -> bld
-                prompts.append(P)
-            prompts = torch.stack(prompts, dim=1)       # [bs, e, l, d]
+            raise NotImplementedError
 
         # prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
         # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
