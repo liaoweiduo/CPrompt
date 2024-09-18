@@ -6,6 +6,7 @@ from torch import nn
 from torch.distributions import relaxed_bernoulli
 import torch.nn.functional as F
 from .base import SimpleLinear
+from .slot_attention import SlotAttention
 
 import torch
 import torch.nn as nn
@@ -68,11 +69,22 @@ class CPrompt_Net(nn.Module):
             param.grad=None
 
     def update_fc(self,nb_classes,cur_task_nbclasses):
+        """
+        modify to use slot-conditioned prompts
+        """
+        if 'slot' not in self.args['model_name'].lower():
+            return self.normal_update_fc(nb_classes,cur_task_nbclasses)
+
         self.aux_cla=self.generate_fc(self.image_encoder.embed_dim,cur_task_nbclasses)
 
         cla_w=self.generate_fc(self.image_encoder.embed_dim,cur_task_nbclasses)
         self.clas_w.append(cla_w)
- 
+
+        # prompts todos
+
+        # load slot params for this task
+
+
         vitprompt_1=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
         
         self.ts_prompts_1.append(vitprompt_1)
@@ -82,7 +94,23 @@ class CPrompt_Net(nn.Module):
         if len(self.clas_w)>1:
             self.ts_prompts_1[-1].load_state_dict(self.ts_prompts_1[-2].state_dict())
             self.ts_prompts_2[-1].load_state_dict(self.ts_prompts_2[-2].state_dict())
-        
+
+    def normal_update_fc(self, nb_classes, cur_task_nbclasses):
+        self.aux_cla = self.generate_fc(self.image_encoder.embed_dim, cur_task_nbclasses)
+
+        cla_w = self.generate_fc(self.image_encoder.embed_dim, cur_task_nbclasses)
+        self.clas_w.append(cla_w)
+
+        vitprompt_1 = nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+
+        self.ts_prompts_1.append(vitprompt_1)
+        vitprompt_2 = nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+        self.ts_prompts_2.append(vitprompt_2)
+
+        if len(self.clas_w) > 1:
+            self.ts_prompts_1[-1].load_state_dict(self.ts_prompts_1[-2].state_dict())
+            self.ts_prompts_2[-1].load_state_dict(self.ts_prompts_2[-2].state_dict())
+
     def generate_fc(self, in_dim, out_dim):
         fc = SimpleLinear(in_dim, out_dim)
         return fc

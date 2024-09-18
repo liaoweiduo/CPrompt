@@ -13,6 +13,7 @@ from utils.toolkit import target2onehot, tensor2numpy, accuracy
 from scipy.spatial.distance import cdist
 from utils.toolkit import count_parameters
 from .base_learner import BaseLearner
+from trainer import _set_random
 import os
 from scipy import stats
 
@@ -281,14 +282,26 @@ class CPrompt(BaseLearner):
         logging.info('All params: {}'.format(count_parameters(self._network)))
         logging.info('Trainable params: {}'.format(count_parameters(self._network, True)))
 
-        train_dataset = data_manager.get_dataset(np.arange(self._known_classes, self._total_classes), source='train',
-                                                 mode='train', appendent=None)
-        test_dataset = data_manager.get_dataset(np.arange(0, self._total_classes), source='test', mode='test')
+        # train_dataset = data_manager.get_dataset(np.arange(self._known_classes, self._total_classes), source='train',
+        #                                          mode='train', appendent=None)
+        # self.train_loader = DataLoader(train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8,
+        #                                persistent_workers=True, pin_memory=True)
 
-        self.train_loader = DataLoader(train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8,
-                                       persistent_workers=True, pin_memory=True)
-        self.test_loader = DataLoader(test_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8)
-        # shuffle=True, to see different targets in 1 batch
+        # shuffle=True, to see different targets in 1 batch and the same samples after different tasks.
+
+        _set_random()
+        # test_datasets = {}
+        self.test_loaders = []
+        class_from = 0
+        class_to = 0
+        for task_id in range(self._cur_task + 1):
+            task_nbclasses = data_manager.get_task_size(task_id)
+            class_to = class_to + task_nbclasses
+            test_dataset = data_manager.get_dataset(np.arange(class_from, class_to), source='test', mode='test')
+            class_from = class_to
+            test_loader = DataLoader(test_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8)
+            self.test_loaders.append(test_loader)
+
         # self._train(self.train_loader, self.test_loader)
         #
         # # save model
@@ -296,57 +309,62 @@ class CPrompt(BaseLearner):
 
         self._load_model(model_save_dir)
 
+        self._network.to(self._device)
+
         self._network.fix_branch_layer()
 
         ## start case study
         logging.info("######################################")
-
-        loader = self.test_loader
-
         self._network.eval()
 
-        iterator = iter(loader)
-        sample = next(iterator)
+        for task_id in range(self._cur_task + 1):
+            logging.info(f"Eval on task: {task_id} ##########")
 
-        _, inputs, targets = sample
+            loader = self.test_loaders[task_id]
 
-        inputs, targets = inputs.to(self._device), targets.to(self._device)
+            iterator = iter(loader)
+            sample = next(iterator)
 
-        logging.info(f'DEBUG: targets {targets.shape}: {targets[:5]}')
+            _, inputs, targets = sample
 
-        gen_p = []
-        with torch.no_grad():
-            x_querry = self._network.image_encoder(inputs, returnbeforepool=True)[:, 0, :]
+            inputs, targets = inputs.to(self._device), targets.to(self._device)
 
-        K = self._network.keys
+            # logging.info(f'inputs {inputs.shape}: {inputs[:5,0,0]}')
+            logging.info(f'targets {targets.shape}: {targets[:5]}')
 
-        f = self._total_classes
-        # f=(self._cur_task+1)*self.args["increment"]
-        K = K[:f]
-        n_K = nn.functional.normalize(K, dim=1)
-        q = nn.functional.normalize(x_querry, dim=1)
-        mk = torch.einsum('bd,kd->bk', q, n_K)
+            gen_p = []
+            with torch.no_grad():
+                x_querry = self._network.image_encoder(inputs, returnbeforepool=True)[:, 0, :]
 
-        if self._cur_task == 0:
-            m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["init_cls"]
-        else:
-            m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["increment"]
+            K = self._network.keys
 
-        logging.info(f'DEBUG: mk {mk.shape}: {mk[:5]}')
-        logging.info(f'DEBUG: m {m.shape}: {m[:5]}')
+            f = self._total_classes
+            # f=(self._cur_task+1)*self.args["increment"]
+            K = K[:f]
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(x_querry, dim=1)
+            mk = torch.einsum('bd,kd->bk', q, n_K)
 
-        ts_prompts_1 = self._network.ts_prompts_1
-        P1 = torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
-        gen_p.append(P1)
-        ts_prompts_2 = self._network.ts_prompts_2
-        P2 = torch.cat([ts_prompts_2[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
-        gen_p.append(P2)
+            if self._cur_task == 0:
+                m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["init_cls"]
+            else:
+                m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["increment"]
 
-        with torch.no_grad():
-            out_logits = self._network(inputs, gen_p, train=False)
+            logging.info(f'mk {mk.shape}: {mk[:5]}')
+            logging.info(f'm {m.shape}: {m[:5]}')
 
-        preds = torch.max(out_logits, dim=1)[1]
+            ts_prompts_1 = self._network.ts_prompts_1
+            P1 = torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
+            gen_p.append(P1)
+            ts_prompts_2 = self._network.ts_prompts_2
+            P2 = torch.cat([ts_prompts_2[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
+            gen_p.append(P2)
 
-        logging.info(f'DEBUG: preds {preds.shape}: {preds[:5]}')
+            with torch.no_grad():
+                out_logits = self._network(inputs, gen_p, train=False)
+
+            preds = torch.max(out_logits, dim=1)[1]
+
+            logging.info(f'preds {preds.shape}: {preds[:5]}')
 
         logging.info("################## next run ####################")

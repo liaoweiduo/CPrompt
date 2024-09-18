@@ -1,4 +1,6 @@
 import sys
+import os
+import random
 import logging
 import copy
 import torch
@@ -17,11 +19,18 @@ def train(args):
         _train(args)
 
 def _train(args):
-    logfilename = 'logs/{}_{}_{}_{}_{}'.format( args['seed'], args['model_name'],
-                                                args['dataset'], args['init_cls'], args['increment'])
+    if not os.path.exists('./logs'): os.makedirs('./logs')
+    logfilename = './logs/{}_{}_{}_{}_{}_{}'.format( args['log_name'], args['seed'], args['model_name'],
+                                                     args['dataset'], args['init_cls'], args['increment'])
+    file_handler = logging.FileHandler(logfilename)
+    file_handler.setLevel(logging.ERROR)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.ERROR)
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(filename)s] => %(message)s',
+        # level=logging.INFO,
+        format='%(asctime)s - %(levelname)s [%(filename)s] => %(message)s',
+        handlers=[file_handler, console_handler],
+        force=True,
     )
 
     _set_random()
@@ -89,6 +98,8 @@ def _set_device(args):
     args['device'] = gpus
 
 def _set_random():
+    random.seed(1)
+    np.random.seed(1)
     torch.manual_seed(1)
     torch.cuda.manual_seed(1)
     torch.cuda.manual_seed_all(1)
