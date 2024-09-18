@@ -2,6 +2,7 @@
 import logging
 import copy
 import numpy as np
+import random
 from tqdm import tqdm
 import torch
 from torch import nn
@@ -13,7 +14,6 @@ from utils.toolkit import target2onehot, tensor2numpy, accuracy
 from scipy.spatial.distance import cdist
 from utils.toolkit import count_parameters
 from .base_learner import BaseLearner
-from trainer import _set_random
 import os
 from scipy import stats
 
@@ -289,7 +289,13 @@ class CPrompt(BaseLearner):
 
         # shuffle=True, to see different targets in 1 batch and the same samples after different tasks.
 
-        _set_random()
+        random.seed(1)
+        np.random.seed(1)
+        torch.manual_seed(1)
+        torch.cuda.manual_seed(1)
+        torch.cuda.manual_seed_all(1)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
         # test_datasets = {}
         self.test_loaders = []
         class_from = 0
