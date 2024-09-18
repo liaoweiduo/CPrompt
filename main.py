@@ -24,6 +24,8 @@ def setup_parser():
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots.')
     parser.add_argument('--lr', type=float, default=1e-2,
                         help='can be overwrite when specifying lr in json')
+    # parser.add_argument('--device', nargs="+", type=int, default=[0],
+    #                      help="The list of gpuid, ex:--gpuid 3 1. Negative value means cpu-only")
 
     parser.add_argument('--log_name', type=str, default='cgqa')
     parser.add_argument('--slot_log_name', type=str, default='cgqa-slot')
