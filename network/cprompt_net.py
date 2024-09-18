@@ -58,7 +58,7 @@ class CPrompt_Net(nn.Module):
         self.ts_prompts_1=nn.ModuleList()
         self.ts_prompts_2=nn.ModuleList()
 
-        # slot init todo
+        # slot init todo change model_name to CPrompt_slot
         # if 'slot' not in self.args['model_name'].lower():
 
 
