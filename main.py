@@ -21,6 +21,8 @@ def setup_parser():
                         help='Json file of settings.')
     parser.add_argument('--topk', type=int, default=5)
     parser.add_argument('--root', type=str, default='./output')
+    parser.add_argument('--debug', default=False, action='store_true', help='print everything.')
+
     return parser
 
 

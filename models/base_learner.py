@@ -58,7 +58,7 @@ class BaseLearner(object):
         logging.info('=> Saving class model to:' + filename)
         logging.info('=> Save Done')
 
-    def load_model(self, filename, drop_last=False):
+    def _load_model(self, filename, drop_last=False):
         state_dict = torch.load(filename + 'class.pth')
         # complete with/without module.
         for key in list(state_dict.keys()):

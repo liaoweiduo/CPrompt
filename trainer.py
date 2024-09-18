@@ -34,40 +34,45 @@ def _train(args):
     for task in range(data_manager.nb_tasks):
         logging.info('All params: {}'.format(count_parameters(model._network)))
         logging.info('Trainable params: {}'.format(count_parameters(model._network, True)))
-        model.incremental_train(data_manager)
+
+        if not args['debug']:
+            model.incremental_train(data_manager)
         
-        cnn_accy,nme_accy = model.eval_task()
-        model.after_task()
-        if nme_accy is not None:
-            logging.info('NME: {}'.format(nme_accy['grouped']))
+            cnn_accy,nme_accy = model.eval_task()
+            model.after_task()
+            if nme_accy is not None:
+                logging.info('NME: {}'.format(nme_accy['grouped']))
 
-            cnn_curve['top1'].append(cnn_accy['top1'])
-            cnn_curve['top5'].append(cnn_accy['top5'])
+                cnn_curve['top1'].append(cnn_accy['top1'])
+                cnn_curve['top5'].append(cnn_accy['top5'])
 
-            nme_curve['top1'].append(nme_accy['top1'])
-            nme_curve['top5'].append(nme_accy['top5'])
+                nme_curve['top1'].append(nme_accy['top1'])
+                nme_curve['top5'].append(nme_accy['top5'])
 
-            print('{}'.format(cnn_curve['top1']))
-            print('{}'.format(cnn_curve['top5']))
-            print('{}'.format(nme_curve['top1']))
-            print('{}'.format(nme_curve['top5']))
-            print('old:{}, new:{}'.format(nme_accy['grouped']['old'],nme_accy['grouped']['new']))
-            x=np.array(cnn_curve['top1'])
-            if len(x)>=1:
-                print("TLO:{}".format(x[-1]))
-                print("MEAN:{}".format(round(np.mean(x),2)))
+                print('{}'.format(cnn_curve['top1']))
+                print('{}'.format(cnn_curve['top5']))
+                print('{}'.format(nme_curve['top1']))
+                print('{}'.format(nme_curve['top5']))
+                print('old:{}, new:{}'.format(nme_accy['grouped']['old'],nme_accy['grouped']['new']))
+                x=np.array(cnn_curve['top1'])
+                if len(x)>=1:
+                    print("TLO:{}".format(x[-1]))
+                    print("MEAN:{}".format(round(np.mean(x),2)))
+            else:
+                logging.info('No NME accuracy.')
+                logging.info('CNN: {}'.format(cnn_accy['grouped']))
+
+                cnn_curve['top1'].append(cnn_accy['top1'])
+
+                logging.info('CNN top1 curve: {}'.format(cnn_curve['top1']))
+                print('old:{}, new:{}'.format(cnn_accy['grouped']['old'],cnn_accy['grouped']['new']))
+                x=np.array(cnn_curve['top1'])
+                if len(x)>=1:
+                    print("TLO:{}".format(x[-1]))
+                    print("MEAN:{}".format(round(np.mean(x),2)))
         else:
-            logging.info('No NME accuracy.')
-            logging.info('CNN: {}'.format(cnn_accy['grouped']))
+            model.case_study(data_manager)
 
-            cnn_curve['top1'].append(cnn_accy['top1'])
-
-            logging.info('CNN top1 curve: {}'.format(cnn_curve['top1']))
-            print('old:{}, new:{}'.format(cnn_accy['grouped']['old'],cnn_accy['grouped']['new']))
-            x=np.array(cnn_curve['top1'])
-            if len(x)>=1:
-                print("TLO:{}".format(x[-1]))
-                print("MEAN:{}".format(round(np.mean(x),2)))
     print("###################### next setting ######################")
 
 def _set_device(args):

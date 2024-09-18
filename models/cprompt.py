@@ -193,7 +193,11 @@ class CPrompt(BaseLearner):
                 m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["init_cls"]
             else:
                 m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
-            
+
+            if self.args['debug']:
+                logging.info(f'DEBUG: mk {mk.shape}: {mk[0]}')
+                logging.info(f'DEBUG: m {m.shape}: {m[0]}')
+
             ts_prompts_1=self._network.ts_prompts_1
             P1=torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m],dim=0)
             gen_p.append(P1)
@@ -260,3 +264,89 @@ class CPrompt(BaseLearner):
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+
+    def case_study(self, data_manager):
+        self.data_manager = data_manager
+        self._cur_task += 1
+
+        model_save_dir = (self.args["root"] + '/' + self.args['log_name'] +
+                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(self._cur_task) + '/')
+        # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
+
+        cur_task_nbclasses = data_manager.get_task_size(self._cur_task)
+        self._total_classes = self._known_classes + cur_task_nbclasses
+        self._network.update_fc(self._total_classes, cur_task_nbclasses)
+        logging.info('Case study on {}-{}'.format(self._known_classes, self._total_classes))
+
+        logging.info('All params: {}'.format(count_parameters(self._network)))
+        logging.info('Trainable params: {}'.format(count_parameters(self._network, True)))
+
+        train_dataset = data_manager.get_dataset(np.arange(self._known_classes, self._total_classes), source='train',
+                                                 mode='train', appendent=None)
+        test_dataset = data_manager.get_dataset(np.arange(0, self._total_classes), source='test', mode='test')
+
+        self.train_loader = DataLoader(train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8,
+                                       persistent_workers=True, pin_memory=True)
+        self.test_loader = DataLoader(test_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8)
+        # shuffle=True, to see different targets in 1 batch
+        # self._train(self.train_loader, self.test_loader)
+        #
+        # # save model
+        # self._save_model(model_save_dir)
+
+        self._load_model(model_save_dir)
+
+        self._network.fix_branch_layer()
+
+        ## start case study
+        logging.info("######################################")
+
+        loader = self.test_loader
+
+        self._network.eval()
+
+        iterator = iter(loader)
+        sample = next(iterator)
+
+        _, inputs, targets = sample
+
+        inputs, targets = inputs.to(self._device), targets.to(self._device)
+
+        logging.info(f'DEBUG: targets {targets.shape}: {targets[:5]}')
+
+        gen_p = []
+        with torch.no_grad():
+            x_querry = self._network.image_encoder(inputs, returnbeforepool=True)[:, 0, :]
+
+        K = self._network.keys
+
+        f = self._total_classes
+        # f=(self._cur_task+1)*self.args["increment"]
+        K = K[:f]
+        n_K = nn.functional.normalize(K, dim=1)
+        q = nn.functional.normalize(x_querry, dim=1)
+        mk = torch.einsum('bd,kd->bk', q, n_K)
+
+        if self._cur_task == 0:
+            m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["init_cls"]
+        else:
+            m = torch.max(mk, dim=1, keepdim=True)[1] // self.args["increment"]
+
+        logging.info(f'DEBUG: mk {mk.shape}: {mk[:5]}')
+        logging.info(f'DEBUG: m {m.shape}: {m[:5]}')
+
+        ts_prompts_1 = self._network.ts_prompts_1
+        P1 = torch.cat([ts_prompts_1[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
+        gen_p.append(P1)
+        ts_prompts_2 = self._network.ts_prompts_2
+        P2 = torch.cat([ts_prompts_2[j].weight.detach().clone().unsqueeze(0) for j in m], dim=0)
+        gen_p.append(P2)
+
+        with torch.no_grad():
+            out_logits = self._network(inputs, gen_p, train=False)
+
+        preds = torch.max(out_logits, dim=1)[1]
+
+        logging.info(f'DEBUG: preds {preds.shape}: {preds[:5]}')
+
+        logging.info("################## next run ####################")

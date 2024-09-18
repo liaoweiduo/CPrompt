@@ -71,6 +71,7 @@ class DataManager(object):
         else:
             return DummyDataset(data, targets, trsf, self.use_path)
 
+
     def get_anchor_dataset(self, mode, appendent=None, ret_data=False):
         if mode == 'train':
             trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
