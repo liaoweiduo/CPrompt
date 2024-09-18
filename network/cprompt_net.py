@@ -89,7 +89,7 @@ class CPrompt_Net(nn.Module):
         # prompts
         # load slot params for this task
         slot_file_name = (self.args["root"] + '/' + self.args['slot_log_name'] +
-                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(self._cur_task) + '/')
+                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(len(self.clas_w)-1) + '/')
         try:
             self.slot_attn._load_model(filename=slot_file_name, freeze=True)
         except:
