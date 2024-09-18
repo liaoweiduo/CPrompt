@@ -27,7 +27,7 @@ def train(args):
     device = copy.deepcopy(args['device'])
 
     # duplicate output stream to output file
-    if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
+    if not os.path.exists(args["root"] + '/' + args['log_name']): os.makedirs(args["root"] + '/' + args['log_name'])
     log_out = args["root"] + '/' + args['log_name'] + '/output.log'
     sys.stdout = Logger(log_out)
     log_err = args["root"] + '/' + args['log_name'] + '/err.log'
