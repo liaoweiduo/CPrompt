@@ -62,7 +62,8 @@ class CPrompt_Net(nn.Module):
         if 'slot' in self.args['model_name'].lower():
             # init slot attn
             self.slot_attn = SlotAttention(emb_d=768, n_slots=args["n_slots"], key_dim=128, n_iter=5)
-            self.slot_attn.freeze()
+            if not self.args['only_learn_slot']:
+                self.slot_attn.freeze()
 
         model_kwargs = dict(patch_size=16, embed_dim=768, depth=12, num_heads=12)
         self.image_encoder =_create_vision_transformer('vit_base_patch16_224', pretrained=True, **model_kwargs)
