@@ -8,7 +8,7 @@ device=${devices[${run_id}]}
 docker run --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CPrompt:/workspace -v /mnt/datasets/datasets:/datasets -v ~/checkpoints:/checkpoints \
   --shm-size 8G liaoweiduo/hide:1.0 \
-python -u main.py --config=./exp/cobj.json \
+python -u main.py --config=./exps/cobj.json \
     --lr ${slot_lr} \
     --slot_log_name cobj-slot-10-lr${slot_lr} \
     --only_learn_slot
