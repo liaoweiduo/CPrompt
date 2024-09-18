@@ -81,6 +81,7 @@ def _train(args):
                     print("MEAN:{}".format(round(np.mean(x),2)))
         else:
             model.case_study(data_manager)
+            model.after_task()
 
     print("###################### next setting ######################")
 

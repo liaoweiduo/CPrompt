@@ -110,7 +110,7 @@ class SlotAttention(nn.Module):
 
         return slots, attn_vis
 
-    def _load_model(self, filename, drop_last=False):
+    def _load_model(self, filename, drop_last=False, freeze=False):
         state_dict = torch.load(filename + 'class.pth')
         # complete with/without module.
         for key in list(state_dict.keys()):
@@ -129,7 +129,12 @@ class SlotAttention(nn.Module):
         self.load_state_dict(state_dict, strict=False)
         logging.info('=> Load Done')
 
-        self._network.eval()
+        self.eval()
+
+        if freeze:
+            for param in self.parameters():
+                param.requires_grad = False
+                param.grad=None
 
 
 def init_tensor(a, b=None, c=None, d=None, ortho=False):

@@ -57,7 +57,11 @@ class CPrompt_Net(nn.Module):
         self.clas_w=nn.ModuleList()
         self.ts_prompts_1=nn.ModuleList()
         self.ts_prompts_2=nn.ModuleList()
-        
+
+        # slot init todo
+        # if 'slot' not in self.args['model_name'].lower():
+
+
         model_kwargs = dict(patch_size=16, embed_dim=768, depth=12, num_heads=12)
         self.image_encoder =_create_vision_transformer('vit_base_patch16_224', pretrained=True, **model_kwargs)
         self.task_tokens = copy.deepcopy(self.image_encoder.cls_token)
@@ -80,10 +84,10 @@ class CPrompt_Net(nn.Module):
         cla_w=self.generate_fc(self.image_encoder.embed_dim,cur_task_nbclasses)
         self.clas_w.append(cla_w)
 
-        # prompts todos
+        # prompts todo
 
         # load slot params for this task
-
+        # self.slot_attn._load_model(filename= , freeze=True)
 
         vitprompt_1=nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
         
