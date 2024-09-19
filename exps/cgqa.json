@@ -2,7 +2,7 @@
     "?log_name":"cgqa",
     "model_name":"CPrompt_slot",
     "n_slots": 10,
-    "?slot_log_name":"cgqa-slot-10",
+    "slot_log_name":"cgqa-slot-10-lr5e-3",
     "slot_epochs": 50,
     "dataset": "cgqa",
     "epochs": 50,
