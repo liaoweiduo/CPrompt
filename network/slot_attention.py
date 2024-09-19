@@ -47,7 +47,7 @@ class SlotAttention(nn.Module):
             nn.Linear(self.emb_d, self.emb_d, bias=True),
         )
 
-    def forward(self, features):
+    def forward(self, features, all_loss=False):
         # features: [bs, n196, 768]
         slots, attn = self.forward_slots(features)
         # slots [bs, k20, d64], attn [bs, n196, k20]
@@ -58,8 +58,11 @@ class SlotAttention(nn.Module):
         slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss
-        recon_loss = F.mse_loss(slot_features, features)
-
+        recon_loss = F.mse_loss(slot_features, features, reduction='none')
+        if all_loss:
+            recon_loss = recon_loss.mean(dim=-1).mean(dim=-1)       # [bs]
+        else:
+            recon_loss = recon_loss.mean()
         return slots, attn, recon_loss
 
     def forward_slots(self, features):
@@ -126,7 +129,7 @@ class SlotAttention(nn.Module):
             else:
                 del state_dict[key]
         self.load_state_dict(state_dict, strict=True)
-        logging.info(f'=> Load Done with param: {list(state_dict.keys())}.')
+        logging.info(f'=> Load Done with params: {list(state_dict.keys())}.')
 
         self.eval()
 

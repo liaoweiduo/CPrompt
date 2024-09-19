@@ -3,6 +3,7 @@
     "model_name":"CPrompt_slot",
     "n_slots": 10,
     "?slot_log_name":"cobj-slot-10",
+    "slot_epochs": 50,
     "dataset": "cobj",
     "epochs": 50,
     "shuffle":true,

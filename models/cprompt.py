@@ -65,16 +65,25 @@ class CPrompt(BaseLearner):
         
         self.train_loader = DataLoader(train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=8, persistent_workers=True, pin_memory=True)
         self.test_loader = DataLoader(test_dataset, batch_size=self.args["batch_size"], shuffle=False, num_workers=8)
-        self._train(self.train_loader,self.test_loader)
 
-        # save model
-        self._save_model(model_save_dir)
+        self._network.to(self._device)
+        # pass training if has model
+        need_train = True
+        try:
+            self._load_model(filename=model_save_dir)
+            need_train = False
+        except:
+            logging.info(f'Do not find learned model, need to learn.')
+
+        if need_train:
+            self._train(self.train_loader,self.test_loader)
+
+            # save model
+            self._save_model(model_save_dir)
 
         self._network.fix_branch_layer()
         
     def _train(self,train_loader,test_loader):
-        self._network.to(self._device)
-        
         enabled = set()
         enabled_params = []
         for name, param in self._network.named_parameters():
@@ -92,6 +101,7 @@ class CPrompt(BaseLearner):
 
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer, T_max=self.args["epochs"])
+
         if self.args['only_learn_slot']:
             self._learn_slot(train_loader,test_loader,optimizer,scheduler)
         else:
@@ -180,7 +190,7 @@ class CPrompt(BaseLearner):
                 m=torch.randint(0,self._cur_task+1,(len(mk),1))     # random select prompt for each sample
 
                 if 'slot' in self.args['model_name'].lower():
-                    slots, attn, _ = self._network.slot_forward(inputs)     # slots [bs, k, h]
+                    slots, attn, _ = self._network.slot_forward(inputs, train=False)     # slots [bs, k, h]
                     # each image with its slot forward on a single slot2prompt model based on m
                     prompts_1 = torch.cat([self._network.ts_prompts_1[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
                     prompts_2 = torch.cat([self._network.ts_prompts_2[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
@@ -251,7 +261,7 @@ class CPrompt(BaseLearner):
 
             if 'slot' in self.args['model_name'].lower():
                 with torch.no_grad():
-                    slots, attn, _ = self._network.slot_forward(inputs)     # slots [bs, k, h]
+                    slots, attn, recon_losses = self._network.slot_forward(inputs, train=False)     # slots [bs, k, h]
                     # each image with its slot forward on a single slot2prompt model based on m
                     prompts_1 = torch.cat([self._network.ts_prompts_1[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
                     prompts_2 = torch.cat([self._network.ts_prompts_2[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
@@ -309,6 +319,8 @@ class CPrompt(BaseLearner):
         print("FF table:")
         print(acctable)
         print("################## next run ####################")
+        if self.args['only_learn_slot']:
+            return recon_losses.unsqueeze(1).cpu().numpy(), np.concatenate(y_true)  # [N, 1]
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
     def normal_eval_cnn(self,loader):

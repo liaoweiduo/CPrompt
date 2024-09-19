@@ -18,7 +18,7 @@ class BaseLearner(object):
 
     def eval_task(self):
         if self.args['only_learn_slot']:
-            losses, y_true = self._eval_cnn(self.test_loader)
+            losses, y_true = self._eval_cnn(self.test_loader)    # losses shape [bs, 1]
             cnn_losses = self._evaluate(losses, y_true, loss=True)
             return cnn_losses, None
         else:
@@ -70,18 +70,10 @@ class BaseLearner(object):
         # complete with/without module.
         for key in list(state_dict.keys()):
             if 'module' in key:
-                state_dict[key[7:]] = state_dict[key]
-            else:
-                state_dict[f'module.{key}'] = state_dict[key]
-        if drop_last:
-            del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            del state_dict['last.weight']; del state_dict['last.bias']
-            # if 'module.last.weight' in state_dict:
-            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            # else:
-            #     del state_dict['last.weight']; del state_dict['last.bias']
-            # self.model.load_state_dict(state_dict, strict=False)
-        self._network.load_state_dict(state_dict, strict=False)
-        logging.info('=> Load Done')
+                state_dict[key[7:]] = state_dict.pop(key)
+            if drop_last and 'clas_w' in key:
+                del state_dict[key]
+        self._network.load_state_dict(state_dict, strict=True)
+        logging.info(f'=> Load Done with params: {list(state_dict.keys())}')
 
         self._network.eval()

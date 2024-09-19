@@ -26,6 +26,10 @@ def train(args):
     seed_list = copy.deepcopy(args['seed']) 
     device = copy.deepcopy(args['device'])
 
+    if args['only_learn_slot']:
+        args['log_name'] = args['slot_log_name']
+        args['epochs'] = args['slot_epochs']
+
     # duplicate output stream to output file
     if not os.path.exists(args["root"] + '/' + args['log_name']): os.makedirs(args["root"] + '/' + args['log_name'])
     log_out = args["root"] + '/' + args['log_name'] + '/output.log'
@@ -40,8 +44,6 @@ def train(args):
 
 def _train(args):
     if not os.path.exists('./logs'): os.makedirs('./logs')
-    if args['only_learn_slot']:
-        args['log_name'] = args['slot_log_name']
     logfilename = './logs/{}_{}_{}_{}_{}_{}'.format( args['log_name'], args['seed'], args['model_name'],
                                                      args['dataset'], args['init_cls'], args['increment'])
     file_handler = logging.FileHandler(logfilename)

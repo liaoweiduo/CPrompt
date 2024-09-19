@@ -89,13 +89,13 @@ class CPrompt_Net(nn.Module):
 
         # prompts
         # load slot params for this task
-        slot_file_name = (self.args["root"] + '/' + self.args['slot_log_name'] +
-                          '/models/seed-' + str(self.args['seed']) + '/task-' + str(len(self.clas_w)-1) + '/')
-        try:
+        if not self.args['only_learn_slot']:
+            slot_file_name = (self.args["root"] + '/' + self.args['slot_log_name'] +
+                              '/models/seed-' + str(self.args['seed']) + '/task-' + str(len(self.clas_w)-1) + '/')
             self.slot_attn._load_model(filename=slot_file_name, freeze=True)
-        except:
-            logging.info(f'WARNING: loading slot unsuccessfully!, slot file name: {slot_file_name}'
-                         f'\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            # except:
+            #     logging.info(f'WARNING: loading slot unsuccessfully!, slot file name: {slot_file_name}'
+            #                  f'\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
         # prompt
         self.ts_prompts_1.append(Slot2Prompt(self.slot_attn.emb_d, key_dim=self.slot_attn.key_d,
@@ -135,7 +135,7 @@ class CPrompt_Net(nn.Module):
         i=len(self.clas_w)-1
 
         if 'slot' in self.args['model_name'].lower():
-            slots, attn, _ = self.slot_forward(image)
+            slots, attn, _ = self.slot_forward(image, train=False)
             prompts_1 = self.ts_prompts_1[i](slots)       # [bs, l, d]
             prompts_2 = self.ts_prompts_2[i](slots)       # [bs, l, d]
             image_features = self.image_encoder(image, instance_tokens=prompts_1, second_pro=prompts_2, returnbeforepool=True, )
@@ -145,15 +145,20 @@ class CPrompt_Net(nn.Module):
         logits=self.aux_cla(feature)['logits']
         return logits,feature
 
-    def slot_forward(self, image):
+    def slot_forward(self, image, train=True):
         x_querry = self.image_encoder(image, returnbeforepool=True)[:, 1:, :]       # [bs, 196, 768]
 
-        if self.args['only_learn_slot']:
+        # if self.args['only_learn_slot']:
+        #     _slots, _attn, _recon_loss = self.slot_attn(x_querry)
+        # else:
+        #     with torch.no_grad():  # this phase does not learn slot attn
+        #         _slots, _attn = self.slot_attn.forward_slots(x_querry)
+        #         _recon_loss = 0
+        if train:
             _slots, _attn, _recon_loss = self.slot_attn(x_querry)
         else:
-            with torch.no_grad():  # this phase does not learn slot attn
-                _slots, _attn = self.slot_attn.forward_slots(x_querry)
-                _recon_loss = 0
+            with torch.no_grad():
+                _slots, _attn, _recon_loss = self.slot_attn(x_querry, all_loss=True)        # recon [bs]
 
         return _slots, _attn, _recon_loss
 
