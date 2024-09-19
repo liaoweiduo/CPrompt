@@ -28,7 +28,8 @@ def setup_parser():
     #                      help="The list of gpuid, ex:--gpuid 3 1. Negative value means cpu-only")
 
     parser.add_argument('--log_name', type=str, default='cgqa')
-    parser.add_argument('--slot_log_name', type=str, default='cgqa-slot')
+    parser.add_argument('--slot_log_name', type=str, default='cgqa-slot',
+                        help='slot log name, can be overwrite when specifying it in json')
     parser.add_argument('--debug', default=False, action='store_true', help='print everything.')
 
     return parser

@@ -2,7 +2,7 @@
     "?log_name":"cobj",
     "model_name":"CPrompt_slot",
     "n_slots": 10,
-    "?slot_log_name":"cobj-slot-10",
+    "slot_log_name":"cobj-slot-10-lr5e-3",
     "slot_epochs": 50,
     "dataset": "cobj",
     "epochs": 50,
