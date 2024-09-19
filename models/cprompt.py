@@ -233,7 +233,7 @@ class CPrompt(BaseLearner):
         faa_pred=[]
 
         self._network.eval()
-        y_pred, y_true = [], []
+        y_pred, y_true, recon_losses_pred = [], [], []
         for _, (_, inputs, targets) in enumerate(loader):
             inputs, targets = inputs.to(self._device), targets.to(self._device)
             
@@ -262,6 +262,7 @@ class CPrompt(BaseLearner):
             if 'slot' in self.args['model_name'].lower():
                 with torch.no_grad():
                     slots, attn, recon_losses = self._network.slot_forward(inputs, train=False)     # slots [bs, k, h]
+                    recon_losses_pred.append(recon_losses)      # [bs]
                     # each image with its slot forward on a single slot2prompt model based on m
                     prompts_1 = torch.cat([self._network.ts_prompts_1[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
                     prompts_2 = torch.cat([self._network.ts_prompts_2[j](slots[i].unsqueeze(0)) for i, j in enumerate(m)], dim=0)  # [bs, l, d]
@@ -320,7 +321,7 @@ class CPrompt(BaseLearner):
         print(acctable)
         print("################## next run ####################")
         if self.args['only_learn_slot']:
-            return recon_losses.unsqueeze(1).cpu().numpy(), np.concatenate(y_true)  # [N, 1]
+            return torch.cat(recon_losses_pred).unsqueeze(1).cpu().numpy(), np.concatenate(y_true)  # [N, 1]
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
     def normal_eval_cnn(self,loader):
