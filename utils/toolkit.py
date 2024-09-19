@@ -25,7 +25,7 @@ def makedirs(path):
 
 
 def accuracy(y_pred, y_true, nb_old, increment=10, loss=False):
-    assert len(y_pred) == len(y_true), 'Data length error.'
+    assert len(y_pred) == len(y_true), f'Data length error: y_pred {y_pred.shape}, y_true {y_true.shape}.'
     all_acc = {}
     if loss:
         all_acc['total'] = np.around(np.mean(y_pred), decimals=4)
