@@ -1,14 +1,14 @@
 {
-    "?log_name":"cobj",
+    "?log_name":"cgqa",
     "model_name":"CPrompt_slot",
     "n_slots": 10,
-    "slot_log_name":"cobj-slot-10-lr5e-3",
+    "slot_log_name":"cgqa-slot-10-lr5e-3",
     "slot_epochs": 50,
-    "dataset": "cobj",
+    "dataset": "cgqa",
     "epochs": 50,
     "shuffle":true,
     "load": true,
-    "init_cls": 10,
+    "init_cls": 50,
     "increment": 10,
     "?lr":1e-2,
     "weight_decay":5e-4,
@@ -16,6 +16,6 @@
     "margin":0.1,
     "alpha":1.0,
     "batch_size":16,
-    "device": ["0"],
+    "device": [0],
     "seed": [1993,87,1013]
 }

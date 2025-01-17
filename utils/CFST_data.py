@@ -31,7 +31,7 @@ class CGQA(torch.utils.data.Dataset):
 
         datasets, label_info = self._get_datasets(
             self.root, mode='continual', image_size=(224, 224),
-            load_set='train' if self.train else 'test')
+            load_set=('train' if self.train else 'test') if download else None)
 
         train_set, val_set, test_set = datasets['train'], datasets['val'], datasets['test']
         (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info
@@ -298,7 +298,7 @@ class CGQA(torch.utils.data.Dataset):
             self.targets = [img_data[1] for img_data in self.imgs]
             self.transform = transform
             self.target_transform = target_transform
-            self.loader = loader
+            self.loader = loader    # no use
             self.loaded = loaded
             self.name = name
 
@@ -308,7 +308,7 @@ class CGQA(torch.utils.data.Dataset):
             try:
                 self.data = np.stack([np.asarray(self.transform(img_data[0])) for img_data in self.imgs])     # only x
             except:
-                self.data = np.stack([img_data[0] for img_data in self.imgs])
+                self.data = np.stack([self.root / img_data[0] for img_data in self.imgs])
 
         def load_data(self):
             """
@@ -326,7 +326,7 @@ class CGQA(torch.utils.data.Dataset):
                     impath = self.imgs[index][0]
                     if self.root is not None:
                         impath = self.root / impath
-                    img = self.loader(impath)
+                    img = Image.open(impath).convert("RGB")
 
                     self.imgs[index] = (img, *self.imgs[index][1:])
 
@@ -360,7 +360,7 @@ class CGQA(torch.utils.data.Dataset):
             else:
                 if self.root is not None:
                     impath = self.root / impath
-                img = self.loader(impath)
+                img = Image.open(impath).convert("RGB")
 
             # If a bounding box is provided, crop the image before passing it to
             # any user-defined transformation.

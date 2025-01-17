@@ -1,13 +1,11 @@
 {
     "?log_name":"cgqa",
-    "model_name":"CPrompt_slot",
-    "n_slots": 10,
-    "slot_log_name":"cgqa-slot-10-lr5e-3",
-    "slot_epochs": 50,
+    "model_name":"CPrompt",
     "dataset": "cgqa",
-    "epochs": 50,
+    "epochs": 20,
     "shuffle":true,
-    "init_cls": 10,
+    "load": true,
+    "init_cls": 50,
     "increment": 10,
     "?lr":1e-2,
     "weight_decay":5e-4,
@@ -16,5 +14,5 @@
     "alpha":1.0,
     "batch_size":16,
     "device": [0],
-    "seed": [1993,87,1013]
+    "seed": [0,1,2]
 }

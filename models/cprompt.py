@@ -225,7 +225,16 @@ class CPrompt(BaseLearner):
             prog_bar.set_description(info)
         logging.info(info)
 
-    def _eval_cnn(self, loader): 
+    def _eval_cnn(self, loader):
+
+        label_task_map = np.zeros(self._total_classes)
+        _cur_cls_id = 0
+        for task_id in range(self._cur_task + 1):
+            num_cls = self.args['init_cls'] if task_id == 0 else self.args['increment']
+            for _ in range(num_cls):
+                label_task_map[_cur_cls_id] = task_id
+                _cur_cls_id = _cur_cls_id + 1
+
         faa_y_true=[]
         total = 0
 
@@ -248,12 +257,16 @@ class CPrompt(BaseLearner):
             K = K[:f]
             n_K = nn.functional.normalize(K, dim=1)
             q = nn.functional.normalize(x_querry, dim=1)
-            mk = torch.einsum('bd,kd->bk', q, n_K)
+            mk = torch.einsum('bd,kd->bk', q, n_K)      # the predict label for each sample
 
             if self._cur_task == 0:
-                m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["init_cls"]
+                m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["init_cls"]        # all 0 [b, 1]
             else:
-                m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
+                m = torch.zeros(mk.shape[0], 1).to(mk.device)
+                for idx in range(mk.shape[0]):
+                    task_id = label_task_map[torch.max(mk[idx], dim=0)[1].item()]
+                    m[idx, 0] = task_id
+                # m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
 
             if self.args['debug']:
                 logging.info(f'DEBUG: mk {mk.shape}: {mk[0]}')

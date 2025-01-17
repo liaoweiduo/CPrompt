@@ -216,9 +216,9 @@ def _get_idata(dataset_name, args=None):
     if name == "cifar100_vit":
         return iCIFAR100_vit()
     elif name == "cgqa":
-        return iCGQA()
+        return iCGQA(args)
     elif name == "cobj":
-        return iCOBJ()
+        return iCOBJ(args)
     elif name == "imagenetr":
         return iImageNetR()
     elif name == "imagenetr":

@@ -17,6 +17,7 @@ def load_json(settings_path):
 def setup_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='stanfordcars',help="imagenetr , domainnet or cifar100_vit")
+    parser.add_argument('--dataroot', type=str, default='../datasets')
     parser.add_argument('--config', type=str, default='./exps/stanfordcars.json',
                         help='Json file of settings.')
     parser.add_argument('--topk', type=int, default=5)

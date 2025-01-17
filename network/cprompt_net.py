@@ -117,10 +117,10 @@ class CPrompt_Net(nn.Module):
         cla_w = self.generate_fc(self.image_encoder.embed_dim, cur_task_nbclasses)
         self.clas_w.append(cla_w)
 
-        vitprompt_1 = nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+        vitprompt_1 = nn.Linear(self.image_encoder.embed_dim, 20, bias=False)   # 原本是50
 
         self.ts_prompts_1.append(vitprompt_1)
-        vitprompt_2 = nn.Linear(self.image_encoder.embed_dim, 50, bias=False)
+        vitprompt_2 = nn.Linear(self.image_encoder.embed_dim, 20, bias=False)   # 原本是50
         self.ts_prompts_2.append(vitprompt_2)
 
         if len(self.clas_w) > 1:
@@ -206,7 +206,7 @@ class ViT_KPrompts(VisionTransformer):
         x = torch.cat((self.cls_token.expand(x.shape[0], -1, -1), x), dim=1)
 
         if gen_pro is None:
-            if instance_tokens is not None and instance_tokens.shape[0]!=16:
+            if instance_tokens is not None and instance_tokens.shape[0]!=16:        # 16 is batch size
                 instance_tokens = instance_tokens.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device)
 
             x = x + self.pos_embed.to(x.dtype)

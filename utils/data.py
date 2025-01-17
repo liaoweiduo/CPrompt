@@ -65,10 +65,13 @@ class iData(object):
     common_trsf = []
     class_order = None
 
+    def __init__(self, args=None):
+        self.args = args
+
 
 class iCGQA(iData):
     use_path = False
-    train_trsf = build_cgqa_transform()
+    train_trsf = build_default_transform(is_train=True)        # build_cgqa_transform()
     test_trsf = build_default_transform(is_train=False)
     common_trsf = []
 
@@ -89,9 +92,15 @@ class iCGQA(iData):
     # classes_per_task = [10 * (10 - args.num_tasks + 1), 10]
 
     def download_data(self):
-
-        train_dataset = CGQA('../datasets', train=True)
-        test_dataset = CGQA('../datasets', train=False)
+        if self.args is None:
+            root = '../datasets'
+            download = True
+        else:
+            root = self.args['dataroot']
+            download = self.args['load']
+        iCGQA.use_path = not download
+        train_dataset = CGQA(root, train=True, download=download)
+        test_dataset = CGQA(root, train=False, download=download)
 
         self.train_data, self.train_targets = train_dataset.train_set.data, np.array(train_dataset.targets)
         self.test_data, self.test_targets = test_dataset.test_set.data, np.array(test_dataset.targets)
@@ -99,16 +108,22 @@ class iCGQA(iData):
 
 class iCOBJ(iData):
     use_path = False
-    train_trsf = build_cgqa_transform()
+    train_trsf = build_default_transform(is_train=True)        # build_cgqa_transform()
     test_trsf = build_default_transform(is_train=False)
     common_trsf = []
 
     class_order = np.arange(30).tolist()
 
     def download_data(self):
-
-        train_dataset = COBJ('../datasets', train=True)
-        test_dataset = COBJ('../datasets', train=False)
+        if self.args is None:
+            root = '../datasets'
+            download = True
+        else:
+            root = self.args['dataroot']
+            download = self.args['load']
+        iCGQA.use_path = not download
+        train_dataset = COBJ(root, train=True, download=download)
+        test_dataset = COBJ(root, train=False, download=download)
 
         self.train_data, self.train_targets = train_dataset.train_set.data, np.array(train_dataset.targets)
         self.test_data, self.test_targets = test_dataset.test_set.data, np.array(test_dataset.targets)
