@@ -262,10 +262,10 @@ class CPrompt(BaseLearner):
             if self._cur_task == 0:
                 m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["init_cls"]        # all 0 [b, 1]
             else:
-                m = torch.zeros(mk.shape[0], 1).to(mk.device)
+                m = torch.zeros(mk.shape[0], 1).long().to(mk.device)
                 for idx in range(mk.shape[0]):
                     task_id = label_task_map[torch.max(mk[idx], dim=0)[1].item()]
-                    m[idx, 0] = task_id
+                    m[idx, 0] = int(task_id)
                 # m=torch.max(mk,dim=1,keepdim=True)[1]//self.args["increment"]
 
             if self.args['debug']:
