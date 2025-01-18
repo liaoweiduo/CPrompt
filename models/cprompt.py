@@ -292,7 +292,7 @@ class CPrompt(BaseLearner):
             with torch.no_grad():
                 out_logits=self._network(inputs,gen_p,train=False)
             
-            preds=torch.max(out_logits, dim=1)[1]
+            preds=torch.max(out_logits, dim=1)[1]           # [bs]
             
             logits_preds=torch.max(out_logits, dim=1)[1]
             cor+=preds.eq(targets.expand_as(preds)).cpu().sum().numpy()
@@ -304,12 +304,19 @@ class CPrompt(BaseLearner):
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
             total+=len(targets)
-        faa_pred=np.concatenate(faa_pred)
+        faa_pred=np.concatenate(faa_pred)       # [all_sample]
         faa_y_true=np.concatenate(faa_y_true)
         faa_tempacc=[]
-        for class_id in range(0, np.max(faa_y_true), self.args["increment"]):
-            idxes = np.where(np.logical_and(faa_y_true >= class_id, faa_y_true < class_id + self.args["increment"]))[0]
+
+        cls_start = 0
+        for task_id in range(self._cur_task + 1):
+            num_cls = self.args['init_cls'] if task_id == 0 else self.args['increment']
+            cls_end = cls_start + num_cls
+            idxes = np.where(np.logical_and(faa_y_true >= cls_start, faa_y_true < cls_end))[0]
             faa_tempacc.append(np.around((faa_pred[idxes] == faa_y_true[idxes]).sum() * 100 / len(idxes), decimals=3))
+        # for class_id in range(0, np.max(faa_y_true), self.args["increment"]):
+        #     idxes = np.where(np.logical_and(faa_y_true >= class_id, faa_y_true < class_id + self.args["increment"]))[0]
+        #     faa_tempacc.append(np.around((faa_pred[idxes] == faa_y_true[idxes]).sum() * 100 / len(idxes), decimals=3))
         
         self.faa_accuracy_table.append(faa_tempacc)
         
