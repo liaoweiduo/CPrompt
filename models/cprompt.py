@@ -160,7 +160,7 @@ class CPrompt(BaseLearner):
                         bool_=torch.max(c1_logits,dim=1)[0]>torch.max(old_logit,dim=1)[0]+self.args["margin"]
                         t=torch.ones((bool_.shape)).to(self._device)
                         t[bool_==False]=self.args["tau"]
-                        t=t.unsqueeze(1).repeat(1,self._total_classes - self._known_classes)
+                        t=t.unsqueeze(1).repeat(1,old_logit.shape[1])
                         # t=t.unsqueeze(1).repeat(1,self.args["increment"])
                         ground=F.softmax(old_logit/t,dim=1).detach().clone()
                         loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logit,dim=1)), dim=1).mean()
