@@ -314,6 +314,7 @@ class CPrompt(BaseLearner):
             cls_end = cls_start + num_cls
             idxes = np.where(np.logical_and(faa_y_true >= cls_start, faa_y_true < cls_end))[0]
             faa_tempacc.append(np.around((faa_pred[idxes] == faa_y_true[idxes]).sum() * 100 / len(idxes), decimals=3))
+            cls_start = cls_end
         # for class_id in range(0, np.max(faa_y_true), self.args["increment"]):
         #     idxes = np.where(np.logical_and(faa_y_true >= class_id, faa_y_true < class_id + self.args["increment"]))[0]
         #     faa_tempacc.append(np.around((faa_pred[idxes] == faa_y_true[idxes]).sum() * 100 / len(idxes), decimals=3))

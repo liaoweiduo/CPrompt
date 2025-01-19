@@ -1,6 +1,7 @@
 lr=1e-2
 docker run -d --rm --runtime=nvidia --gpus device=0 \
   -v ~/CPrompt:/workspace -v /mnt/datasets/datasets:/datasets -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/root/.cache \
   --shm-size 8G liaoweiduo/hide:1.0 \
 python -u main.py --config=./exps/cgqa.json \
     --lr ${lr} \
